@@ -183,7 +183,7 @@ $( document ).ready(function() {
         login.checkSession((err, result) => {
             if (result) {
                getQuizStatus();
-                var userInfoIntercom = Cookies.getJSON("com.neo4j.accounts.userInfo");
+                var userInfoIntercom = result.idTokenPayload;
                 if (userInfoIntercom) {
                   try {
                     window.Intercom("update", {
