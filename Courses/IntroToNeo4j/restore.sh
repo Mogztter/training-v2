@@ -1,0 +1,12 @@
+#!/bin/bash
+#!/bin/bash
+set -e
+
+# load config
+. ./module.config
+
+# load functions
+. ../_bin/functions.sh
+
+current_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+publish_wordpress "${current_dir}"
