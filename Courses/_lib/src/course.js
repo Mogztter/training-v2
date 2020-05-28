@@ -37,17 +37,24 @@ document.addEventListener('DOMContentLoaded', function () {
   var siteUrl = window.location
   var enrollmentUrl = window.trainingEnrollmentUrl
 
-  function getQuizStatus(accessToken) {
-    return $.ajax({
-      type: 'GET',
-      url: backendBaseUrl + '/getQuizStatus?className=' + trainingName,
-      contentType: 'application/json',
-      dataType: 'json',
-      async: true,
-      headers: {
-        'Authorization': accessToken
+  function getQuizStatus(accessToken, success, error) {
+    // setRequestHeader
+    var request = new XMLHttpRequest()
+    request.open('GET', backendBaseUrl + '/getQuizStatus?className=' + trainingName, true)
+    request.setRequestHeader('Content-Type', 'application/json')
+    request.setRequestHeader('Accept', 'application/json')
+    request.setRequestHeader('Authorization', accessToken)
+    request.onload = function() {
+      if (this.status >= 200 && this.status < 400) {
+        success(JSON.parse(this.response))
+      } else {
+        error(JSON.parse(this.response))
       }
-    })
+    }
+    request.onerror = function(evt) {
+      error(evt)
+    }
+    request.send()
   }
 
   function setQuizStatus(passed, failed, accessToken) {
@@ -131,25 +138,22 @@ document.addEventListener('DOMContentLoaded', function () {
     var passedArray = []
     var failedArray = []
     for (var quizName in quizStatus) {
-      const quizItemProgress = document.getElementById(quizName + '-progress')
-      quizItemProgress.classList.remove('fa-circle-thin', 'fa-close', 'fa-check')
       if (quizStatus[quizName]) {
         passedArray.push(quizName)
-        document.getElementById('menu-' + quizName + ' .fa-stack').style.color = 'green'
-        document.getElementById('menu-' + quizName + ' .fa-stack-1x').innerHTML('<span class="fa fa-check" style="padding-top: 6px"></span>')
-        quizItemProgress.style.color = 'green'
-        quizItemProgress.classList.add('fa-check')
+        const menuItem = document.getElementById('menu-' + quizName)
+        menuItem.querySelector('.fa-stack').style.color = 'green'
+        menuItem.querySelector('.fa-stack-1x').innerHTML = '<span class="fa fa-check" style="padding-top: 6px"></span>'
       } else {
         failedArray.push(quizName)
-        quizItemProgress.style.color = 'red'
-        quizItemProgress.classList.add('fa-close')
       }
     }
     const quizesResult = document.getElementById('quizes-result')
-    if (passedArray.length == quizCount) {
-      quizesResult.innerHTML('<p>All quizes taken successfully.</p>')
-    } else {
-      quizesResult.innerHTML('<p>Some quizes not answered successfully. Return to course modules by clicking on the numbers  in the navigation at the top of the page.</p>')
+    if (quizesResult) {
+      if (passedArray.length == quizCount) {
+        quizesResult.innerHTML('<p>All quizes taken successfully.</p>')
+      } else {
+        quizesResult.innerHTML('<p>Some quizes not answered successfully. Return to course modules by clicking on the numbers  in the navigation at the top of the page.</p>')
+      }
     }
     return { passed: passedArray, failed: failedArray }
   }
@@ -161,7 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // events
-  var nextSectionButton = document.getElementsByClassName('next-section')
+  var nextSectionButton = document.querySelector('.next-section')
   if( nextSectionButton) {
     nextSectionButton.addEventListener("click", function (event) {
       event.preventDefault()
@@ -196,14 +200,6 @@ document.addEventListener('DOMContentLoaded', function () {
         })
     })
   }
-
-  const quizProgress = document.getElementsByClassName("quiz-progress")
-  quizProgress.querySelectorAll("li").forEach(function(el){
-    el.style['list-style-image'] = 'none !important'
-  })
-  quizProgress.querySelectorAll("li i").forEach(function(el){
-    el.classList.add('fa', 'fa-li', 'fa-circle-thin')
-  })
 
   // initial state
   var currentQuizStatus
@@ -248,44 +244,43 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Unable to get enrollment', error)
           })
         // get the current quiz status from the server
-        getQuizStatus(accessToken)
-          .then(function (response) {
-            var quizStatus = response['quizStatus']
-            if (quizStatus) {
-              var quizesStatusL = {}
-              var failed = quizStatus['failed']
-              var passed = quizStatus['passed']
-              var untried = quizStatus['untried']
-              for (var i in failed) {
-                quizesStatusL[failed[i]] = false
-              }
-              for (var i in passed) {
-                quizesStatusL[passed[i]] = true
-              }
-              for (var i in untried) {
-                quizesStatusL[untried[i]] = null
-              }
-              window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(quizesStatusL))
-              var quizesStatus = quizesStatusL
-              updateProgressIndicators(quizesStatus)
-              const quizElement = document.querySelector(".quiz");
-              const quizId = quizElement.getAttribute("id");
-              var currentPageQuizStatus = quizesStatus[quizId]
-              if (currentPageQuizStatus) {
-                var sectionTitle = document.getElementById("_grade_quiz_and_continue").getElementsByTagName('h3')
-                sectionTitle.textContent = "Quiz successfully submitted."
-                quizElement.style.display = 'none'
-                nextSectionButton.removeEventListener("click")
-                nextSectionButton.addEventListener("click", function (event) {
-                  document.location = event.target.href
-                })
-              }
-            } else {
-              console.warn('Unable to update the current quiz status, response from the server is empty', response)
+        getQuizStatus(accessToken, function (response) {
+          var quizStatus = response['quizStatus']
+          if (quizStatus) {
+            var quizesStatusL = {}
+            var failed = quizStatus['failed']
+            var passed = quizStatus['passed']
+            var untried = quizStatus['untried']
+            for (var i in failed) {
+              quizesStatusL[failed[i]] = false
             }
-          }, function (jqXHR, textStatus, error) {
-            console.error('Unable to get quiz status', error)
-          })
+            for (var i in passed) {
+              quizesStatusL[passed[i]] = true
+            }
+            for (var i in untried) {
+              quizesStatusL[untried[i]] = null
+            }
+            window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(quizesStatusL))
+            var quizesStatus = quizesStatusL
+            updateProgressIndicators(quizesStatus)
+            const quizElement = document.querySelector(".quiz");
+            const quizId = quizElement.getAttribute("id");
+            var currentPageQuizStatus = quizesStatus[quizId]
+            if (currentPageQuizStatus) {
+              var sectionTitle = document.getElementById("_grade_quiz_and_continue").getElementsByTagName('h3')
+              sectionTitle.textContent = "Quiz successfully submitted."
+              quizElement.style.display = 'none'
+              nextSectionButton.removeEventListener("click")
+              nextSectionButton.addEventListener("click", function (event) {
+                document.location = event.target.href
+              })
+            }
+          } else {
+            console.warn('Unable to update the current quiz status, response from the server is empty', response)
+          }
+        }, function (error) {
+          console.error('Unable to get quiz status', error)
+        })
         var certificateResultElement = document.getElementById('cert-result')
         if (certificateResultElement) {
           certificateResultElement.innerHTML = "<i>... Checking for certificate ...</i>"
@@ -325,13 +320,13 @@ document.addEventListener('DOMContentLoaded', function () {
 //
 
 document.querySelectorAll('.admonitionblock.note').forEach(function(admonitionElement) {
-  admonitionElement.querySelector('icon').innerHTML = 'NOTE'
+  admonitionElement.querySelector('.icon').innerHTML = 'NOTE'
 })
 document.querySelectorAll('.admonitionblock.warning').forEach(function(admonitionElement) {
-  admonitionElement.querySelector('icon').innerHTML = 'WARNING'
+  admonitionElement.querySelector('.icon').innerHTML = 'WARNING'
 })
 document.querySelectorAll('.admonitionblock.information').forEach(function(admonitionElement) {
-  admonitionElement.querySelector('icon').innerHTML = 'INFO'
+  admonitionElement.querySelector('.icon').innerHTML = 'INFO'
 })
 
 var isBlock = /^(p|li|div|h\\d|pre|blockquote|td)$/
