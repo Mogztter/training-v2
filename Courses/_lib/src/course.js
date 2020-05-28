@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var trainingName = window.trainingClassName
   var siteUrl = window.location
   var enrollmentUrl = window.trainingEnrollmentUrl
+  var partIndex = window.trainingPartIndex
 
   function makeJsonRequest(verb, url, data, accessToken, successCallback, errorCallback) {
     var request = new XMLHttpRequest()
@@ -354,12 +355,6 @@ function ready(fn) {
   }
 }
 
-ready(function () {
-  if (CodeMirror.colorize) {
-    CodeMirror.colorize(document.body.getElementsByTagName("pre"), 'cypher');
-  }
-})
-
 // Intercom
 ;(function () {
   var w = window;
@@ -394,3 +389,10 @@ ready(function () {
     }
   }
 })()
+
+ready(function () {
+  if (CodeMirror.colorize) {
+    CodeMirror.colorize(document.body.getElementsByTagName("pre"), 'cypher');
+  }
+  Intercom('trackEvent', window.trainingClassName + '-view-part' + window.trainingPartIndex)
+})
