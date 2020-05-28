@@ -1,4 +1,4 @@
-/* global $, auth0, CodeMirror */
+/* global XMLHttpRequest, auth0, CodeMirror */
 
 // IE polyfill closest
 // https://developer.mozilla.org/en-US/docs/Web/API/Element/closest#Polyfill
@@ -37,68 +37,47 @@ document.addEventListener('DOMContentLoaded', function () {
   var siteUrl = window.location
   var enrollmentUrl = window.trainingEnrollmentUrl
 
-  function getQuizStatus(accessToken, success, error) {
-    // setRequestHeader
+  function makeJsonRequest(verb, url, data, accessToken, successCallback, errorCallback) {
     var request = new XMLHttpRequest()
-    request.open('GET', backendBaseUrl + '/getQuizStatus?className=' + trainingName, true)
+    request.open(verb, url, true)
     request.setRequestHeader('Content-Type', 'application/json')
     request.setRequestHeader('Accept', 'application/json')
     request.setRequestHeader('Authorization', accessToken)
     request.onload = function() {
       if (this.status >= 200 && this.status < 400) {
-        success(JSON.parse(this.response))
+        successCallback(JSON.parse(this.response))
       } else {
-        error(JSON.parse(this.response))
+        errorCallback(JSON.parse(this.response))
       }
     }
     request.onerror = function(evt) {
-      error(evt)
+      errorCallback(evt)
     }
-    request.send()
+    if (data) {
+      request.send(data)
+    } else {
+      request.send()
+    }
+  }
+  function getQuizStatus(accessToken, successCallback, errorCallback) {
+    makeJsonRequest('GET', backendBaseUrl + '/getQuizStatus?className=' + trainingName, null, accessToken, successCallback, errorCallback)
   }
 
-  function setQuizStatus(passed, failed, accessToken) {
+  function setQuizStatus(passed, failed, accessToken, successCallback, errorCallback) {
     var data = {
       'className': window.trainingClassName,
       'passed': passed,
       'failed': failed
     }
-    return $.ajax({
-      type: 'POST',
-      url: backendBaseUrl + '/setQuizStatus',
-      contentType: 'application/json',
-      dataType: 'json',
-      async: true,
-      data: JSON.stringify(data),
-      headers: {
-        'Authorization': accessToken
-      }
-    })
+    makeJsonRequest('POST', backendBaseUrl + '/setQuizStatus', data, accessToken, successCallback, errorCallback)
   }
 
-  function getClassCertificate(accessToken) {
-    return $.ajax({
-      type: 'POST',
-      url: backendBaseUrl + '/genClassCertificate',
-      contentType: 'application/json',
-      dataType: 'json',
-      async: true,
-      data: JSON.stringify({ 'className': trainingName }),
-      headers: {
-        'Authorization': accessToken
-      }
-    })
+  function getClassCertificate(accessToken, successCallback, errorCallback) {
+    makeJsonRequest('POST', backendBaseUrl + '/genClassCertificate', { 'className': trainingName }, accessToken, successCallback, errorCallback)
   }
 
-  function getEnrollmentForClass(accessToken) {
-    return $.ajax({
-      type: 'GET',
-      url: backendBaseUrl + '/getClassEnrollment?className=' + trainingName,
-      async: true,
-      headers: {
-        'Authorization': accessToken
-      }
-    })
+  function getEnrollmentForClass(accessToken, successCallback, errorCallback) {
+    makeJsonRequest('GET', backendBaseUrl + '/getClassEnrollment?className=' + trainingName, null, accessToken, successCallback, errorCallback)
   }
 
   function gradeQuiz(theQuiz) {
@@ -188,16 +167,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // update indicators
       currentQuizStatus = updateProgressIndicators(currentQuizStatus)
-      setQuizStatus(currentQuizStatus['passed'], currentQuizStatus['failed'], accessToken)
-        .then(() => {
-          window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(currentQuizStatus))
-          if (quizSuccess) {
-            document.location = hrefSuccess
-          }
-        }, function (jqXHR, textStatus, error) {
-          // question: what should we do? display an error message to the user?
-          console.error('Unable to update quiz status', error)
-        })
+      setQuizStatus(currentQuizStatus['passed'], currentQuizStatus['failed'], accessToken, function () {
+        window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(currentQuizStatus))
+        if (quizSuccess) {
+          document.location = hrefSuccess
+        }
+      }, function (error) {
+        // question: what should we do? display an error message to the user?
+        console.error('Unable to update quiz status', error)
+      })
     })
   }
 
@@ -232,17 +210,16 @@ document.addEventListener('DOMContentLoaded', function () {
         // we're authenticated!
         accessToken = authResult.accessToken
         // get the enrollment status
-        getEnrollmentForClass(accessToken)
-          .then(function (data) {
-            if (data) {
-              if (data.enrolled === false) {
-                // you should be enrolled, redirect to the enrollment page!
-                window.location = enrollmentUrl
-              }
+        getEnrollmentForClass(accessToken, function (data) {
+          if (data) {
+            if (data.enrolled === false) {
+              // you should be enrolled, redirect to the enrollment page!
+              window.location = enrollmentUrl
             }
-          }, function (jqXHR, textStatus, error) {
-            console.error('Unable to get enrollment', error)
-          })
+          }
+        }, function (error) {
+          console.error('Unable to get enrollment', error)
+        })
         // get the current quiz status from the server
         getQuizStatus(accessToken, function (response) {
           var quizStatus = response['quizStatus']
@@ -284,16 +261,15 @@ document.addEventListener('DOMContentLoaded', function () {
         var certificateResultElement = document.getElementById('cert-result')
         if (certificateResultElement) {
           certificateResultElement.innerHTML = "<i>... Checking for certificate ...</i>"
-          getClassCertificate(accessToken)
-            .then(function (value) {
-              if ('url' in value) {
-                certificateResultElement.innerHTML = "<a href=\"" + value['url'] + "\">Download Certificate</a>"
-              } else {
-                certificateResultElement.innerHTML = "Certificate not available yet.  Did you complete the quizzes at the end of each section?"
-              }
-            }, function (jqXHR, textStatus, error) {
-              console.error('Unable to get certificate', error)
-            })
+          getClassCertificate(accessToken, function (value) {
+            if ('url' in value) {
+              certificateResultElement.innerHTML = "<a href=\"" + value['url'] + "\">Download Certificate</a>"
+            } else {
+              certificateResultElement.innerHTML = "Certificate not available yet.  Did you complete the quizzes at the end of each section?"
+            }
+          }, function (error) {
+            console.error('Unable to get certificate', error)
+          })
         }
         var userInfo = authResult.idTokenPayload;
         if (window.intercomSettings && window.intercomSettings.app_id && userInfo) {
