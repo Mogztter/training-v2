@@ -1,4 +1,27 @@
 /* global $, auth0, CodeMirror */
+
+// IE polyfill closest
+// https://developer.mozilla.org/en-US/docs/Web/API/Element/closest#Polyfill
+if (!Element.prototype.matches) {
+  Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+}
+
+if (!Element.prototype.closest) {
+  Element.prototype.closest = function (s) {
+    var el = this
+    if (!document.documentElement.contains(el)) {
+      return null
+    }
+    do {
+      if (el.matches(s)) {
+        return el
+      }
+      el = el.parentElement || el.parentNode
+    } while (el !== null && el.nodeType == 1)
+    return null
+  }
+}
+
 window.intercomSettings = {
   app_id: 'dt0ig5ab',
   hide_default_launcher: true
@@ -72,22 +95,32 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function gradeQuiz(theQuiz) {
-    var quizName = theQuiz.attr("id")
+    var quizName = theQuiz.getAttribute("id")
     var quizSuccess = true
     if (quizName in currentQuizStatus && currentQuizStatus[quizName]) {
       return true
     }
-    theQuiz.find("h3").css("color", "#525865")
-    theQuiz.find(".required-answer").each(function () {
-      if (!$(this).prev(":checkbox").prop("checked")) {
-        $(this).closest(".ulist").siblings("h3").css("color", "red")
+    theQuiz.querySelector("h3").style.color = "#525865"
+    var requiredAnswers = theQuiz.querySelectorAll(".required-answer")
+    Array.prototype.forEach.call(requiredAnswers, function(el) {
+      if (!el.previousElementSibling.checked) {
         quizSuccess = false
+        var section = el.closest(".sect2")
+        var sectionTitle = section.querySelector("h3")
+        if (sectionTitle) {
+          sectionTitle.style.color = "red"
+        }
       }
     })
-    theQuiz.find(".false-answer").each(function () {
-      if ($(this).prev(":checkbox").prop("checked")) {
-        $(this).closest(".ulist").siblings("h3").css("color", "red")
+    var falseAnswers = theQuiz.querySelectorAll(".false-answer")
+    Array.prototype.forEach.call(falseAnswers, function(el) {
+      if (el.previousElementSibling.checked) {
         quizSuccess = false
+        const section = el.closest(".sect2")
+        var sectionTitle = section.querySelector("h3")
+        if (sectionTitle) {
+          sectionTitle.style.color = "red"
+        }
       }
     })
     currentQuizStatus[quizName] = quizSuccess
@@ -134,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
     event.preventDefault()
 
     var hrefSuccess = event.target.href
-    var quizSuccess = gradeQuiz($(".quiz").first())
+    var quizSuccess = gradeQuiz(document.querySelector(".quiz"))
     if (quizSuccess) {
       $("#submit-message").remove()
     } else {
