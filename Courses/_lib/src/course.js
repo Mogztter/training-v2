@@ -131,27 +131,25 @@ document.addEventListener('DOMContentLoaded', function () {
     var passedArray = []
     var failedArray = []
     for (var quizName in quizStatus) {
-      const $quizItemProgress = $('#' + quizName + '-progress');
-      $quizItemProgress.removeClass('fa-circle-thin')
-      $quizItemProgress.removeClass('fa-close')
-      $quizItemProgress.removeClass('fa-check')
+      const quizItemProgress = document.getElementById(quizName + '-progress')
+      quizItemProgress.classList.remove('fa-circle-thin', 'fa-close', 'fa-check')
       if (quizStatus[quizName]) {
         passedArray.push(quizName)
-        $('#menu-' + quizName + ' .fa-stack').css('color', 'green')
-        $('#menu-' + quizName + ' .fa-stack-1x').html('<span class="fa fa-check" style="padding-top: 6px"></span>')
-        $quizItemProgress.css('color', 'green')
-        $quizItemProgress.addClass('fa-check')
+        document.getElementById('menu-' + quizName + ' .fa-stack').style.color = 'green'
+        document.getElementById('menu-' + quizName + ' .fa-stack-1x').innerHTML('<span class="fa fa-check" style="padding-top: 6px"></span>')
+        quizItemProgress.style.color = 'green'
+        quizItemProgress.classList.add('fa-check')
       } else {
         failedArray.push(quizName)
-        $quizItemProgress.css('color', 'red')
-        $quizItemProgress.addClass('fa-close')
+        quizItemProgress.style.color = 'red'
+        quizItemProgress.classList.add('fa-close')
       }
     }
-    const $quizesResult = $('#quizes-result')
+    const quizesResult = document.getElementById('quizes-result')
     if (passedArray.length == quizCount) {
-      $quizesResult.html('<p>All quizes taken successfully.</p>')
+      quizesResult.innerHTML('<p>All quizes taken successfully.</p>')
     } else {
-      $quizesResult.html('<p>Some quizes not answered successfully. Return to course modules by clicking on the numbers  in the navigation at the top of the page.</p>')
+      quizesResult.innerHTML('<p>Some quizes not answered successfully. Return to course modules by clicking on the numbers  in the navigation at the top of the page.</p>')
     }
     return { passed: passedArray, failed: failedArray }
   }
@@ -163,37 +161,49 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // events
-  $('.next-section').click(function (event) {
-    event.preventDefault()
+  var nextSectionButton = document.getElementsByClassName('next-section')
+  if( nextSectionButton) {
+    nextSectionButton.addEventListener("click", function (event) {
+      event.preventDefault()
+      var hrefSuccess = event.target.href
+      var quizSuccess = gradeQuiz(document.querySelector(".quiz"))
+      var submitMessageElement = document.getElementById("submit-message")
+      if (quizSuccess) {
+        submitMessageElement.parentNode.removeChild(submitMessageElement)
+      } else {
+        const submitMessageElement = document.createElement('div')
+        submitMessageElement.id = 'submit-message'
+        submitMessageElement.innerHTML = '<p id="submit-message"><span style="color: red">Please correct errors</span> in quiz responses above to continue. Questions with incorrect responses are highlighted in <span style="color: red">red</span>.</p></div>'
+        // before
+        nextSectionButton.insertAdjacentElement('beforebegin', submitMessageElement)
+        const divElement = document.createElement('div');
+        divElement.classList.add('paragraph')
+        divElement.innerHTML = '<a href="'+ hrefSuccess + '">Click here</a> if you wish to advance to next section without passing the quiz.'
+        submitMessageElement.append(divElement)
+      }
 
-    var hrefSuccess = event.target.href
-    var quizSuccess = gradeQuiz(document.querySelector(".quiz"))
-    if (quizSuccess) {
-      $("#submit-message").remove()
-    } else {
-      $(".next-section").before("<div id='submit-message'><p id='submit-message'><span style='color: red'>Please correct errors</span> in quiz responses above to continue.  Questions with incorrect responses are highlighted in <span style='color: red'>red</span>.</p></div>");
-      $("#submit-message").append("<div class='paragraph'><a href='" + hrefSuccess + "'>Click here</a> if you wish to advance to next section without passing the quiz.</div>")
-    }
+      // update indicators
+      currentQuizStatus = updateProgressIndicators(currentQuizStatus)
+      setQuizStatus(currentQuizStatus['passed'], currentQuizStatus['failed'], accessToken)
+        .then(() => {
+          window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(currentQuizStatus))
+          if (quizSuccess) {
+            document.location = hrefSuccess
+          }
+        }, function (jqXHR, textStatus, error) {
+          // question: what should we do? display an error message to the user?
+          console.error('Unable to update quiz status', error)
+        })
+    })
+  }
 
-    // update indicators
-    currentQuizStatus = updateProgressIndicators(currentQuizStatus)
-    setQuizStatus(currentQuizStatus['passed'], currentQuizStatus['failed'], accessToken)
-      .then(() => {
-        window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(currentQuizStatus))
-        if (quizSuccess) {
-          document.location = hrefSuccess
-        }
-      }, function (jqXHR, textStatus, error) {
-        // question: what should we do? display an error message to the user?
-        console.error('Unable to update quiz status', error)
-      })
+  const quizProgress = document.getElementsByClassName("quiz-progress")
+  quizProgress.querySelectorAll("li").forEach(function(el){
+    el.style['list-style-image'] = 'none !important'
   })
-
-  const $quizProgress = $(".quiz-progress")
-  $quizProgress.find("li").css("cssText", "list-style-image: none !important")
-  $quizProgress.find("li i").addClass("fa")
-  $quizProgress.find("li i").addClass("fa-li")
-  $quizProgress.find("li i").addClass("fa-circle-thin")
+  quizProgress.querySelectorAll("li i").forEach(function(el){
+    el.classList.add('fa', 'fa-li', 'fa-circle-thin')
+  })
 
   // initial state
   var currentQuizStatus
@@ -258,12 +268,15 @@ document.addEventListener('DOMContentLoaded', function () {
               window.localStorage.setItem(quizStatusLocalStorageKey, JSON.stringify(quizesStatusL))
               var quizesStatus = quizesStatusL
               updateProgressIndicators(quizesStatus)
-              var currentPageQuizStatus = quizesStatus[$(".quiz").attr("id")]
+              const quizElement = document.querySelector(".quiz");
+              const quizId = quizElement.getAttribute("id");
+              var currentPageQuizStatus = quizesStatus[quizId]
               if (currentPageQuizStatus) {
-                $("#_grade_quiz_and_continue h3").text("Quiz successfully submitted.")
-                $(".quiz").hide()
-                $(".next-section").unbind("click")
-                $(".next-section").click(function (event) {
+                var sectionTitle = document.getElementById("_grade_quiz_and_continue").getElementsByTagName('h3')
+                sectionTitle.textContent = "Quiz successfully submitted."
+                quizElement.style.display = 'none'
+                nextSectionButton.removeEventListener("click")
+                nextSectionButton.addEventListener("click", function (event) {
                   document.location = event.target.href
                 })
               }
@@ -273,15 +286,15 @@ document.addEventListener('DOMContentLoaded', function () {
           }, function (jqXHR, textStatus, error) {
             console.error('Unable to get quiz status', error)
           })
-        var certificateResultElement = $('#cert-result')
+        var certificateResultElement = document.getElementById('cert-result')
         if (certificateResultElement) {
-          certificateResultElement.html("<i>... Checking for certificate ...</i>");
+          certificateResultElement.innerHTML = "<i>... Checking for certificate ...</i>"
           getClassCertificate(accessToken)
             .then(function (value) {
               if ('url' in value) {
-                certificateResultElement.html("<a href=\"" + value['url'] + "\">Download Certificate</a>");
+                certificateResultElement.innerHTML = "<a href=\"" + value['url'] + "\">Download Certificate</a>"
               } else {
-                certificateResultElement.html("Certificate not available yet.  Did you complete the quizzes at the end of each section?");
+                certificateResultElement.innerHTML = "Certificate not available yet.  Did you complete the quizzes at the end of each section?"
               }
             }, function (jqXHR, textStatus, error) {
               console.error('Unable to get certificate', error)
@@ -311,9 +324,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
 //
 
-$('.admonitionblock.note').find('.icon').html('NOTE')
-$('.admonitionblock.warning').find('.icon').html('WARNING')
-$('.admonitionblock.information').find('.icon').html('INFO')
+document.querySelectorAll('.admonitionblock.note').forEach(function(admonitionElement) {
+  admonitionElement.querySelector('icon').innerHTML = 'NOTE'
+})
+document.querySelectorAll('.admonitionblock.warning').forEach(function(admonitionElement) {
+  admonitionElement.querySelector('icon').innerHTML = 'WARNING'
+})
+document.querySelectorAll('.admonitionblock.information').forEach(function(admonitionElement) {
+  admonitionElement.querySelector('icon').innerHTML = 'INFO'
+})
 
 var isBlock = /^(p|li|div|h\\d|pre|blockquote|td)$/
 
@@ -356,7 +375,15 @@ CodeMirror.colorize = function (collection, defaultMode) {
   }
 }
 
-$(document).ready(function () {
+function ready(fn) {
+  if (document.readyState != 'loading'){
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn);
+  }
+}
+
+ready(function () {
   if (CodeMirror.colorize) {
     CodeMirror.colorize(document.body.getElementsByTagName("pre"), 'cypher');
   }
